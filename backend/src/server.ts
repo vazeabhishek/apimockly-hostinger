@@ -1,8 +1,9 @@
-import { loadConfig } from "./config.js";
+import { loadConfig, loadEnvFiles } from "./config.js";
 import { buildApp } from "./app.js";
 import { createPool, MysqlRepo } from "./mysqlRepo.js";
 import { scheduleCleanup } from "./cleanup.js";
 
+loadEnvFiles();
 const config = loadConfig();
 const repo = new MysqlRepo(createPool(config.databaseUrl));
 const app = buildApp(repo, config);

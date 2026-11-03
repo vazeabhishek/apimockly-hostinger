@@ -17,6 +17,7 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [Keep a mock by signing up](how-to/claim-a-mock.md)
 - [Run and schedule the cleanup job](how-to/run-cleanup-job.md)
 - [Configure limits](how-to/configure-limits.md)
+- [Configure for production](how-to/configure-production.md)
 
 ## Reference
 - [Chat phrase grammar](reference/chat-phrase.md)
