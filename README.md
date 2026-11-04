@@ -1,4 +1,6 @@
-# API Mocker
+# API Mockly
+
+*Mock your APIs faster.*
 
 Describe an API in a chat and get it hosted instantly:
 

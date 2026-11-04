@@ -10,9 +10,9 @@ interface Props {
 export const DonateDialog = forwardRef<HTMLDialogElement, Props>(function DonateDialog({ onClose }, ref) {
   return (
     <dialog ref={ref} className="donate" aria-labelledby="donate-title" onClose={onClose}>
-      <h2 id="donate-title">Keep API Mocker free</h2>
+      <h2 id="donate-title">Keep API Mockly free</h2>
       <p>
-        API Mocker is free to use. If it saves you time, a small donation helps cover hosting
+        API Mockly is free to use. If it saves you time, a small donation helps cover hosting
         and keeps the platform running.
       </p>
       <img src={qr} alt="PayPal QR code for @vazeabhishekd" width={200} height={200} />

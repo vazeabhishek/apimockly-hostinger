@@ -25,7 +25,8 @@ export function Shell({ view, user, onNavigate, onLogout, children }: Props) {
   return (
     <div className="shell">
       <aside className={`sidebar${open ? " open" : ""}`}>
-        <div className="brand"><Icons.logo /> API Mocker</div>
+        <div className="brand"><Icons.logo /> API Mockly</div>
+        <p className="tagline">Mock your APIs faster</p>
         <nav className="side-nav" aria-label="Main">
           <button className={`nav-item${view === "chat" ? " active" : ""}`} onClick={() => go("chat")}>
             <Icons.chat /> Chat
