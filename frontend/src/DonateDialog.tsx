@@ -1,4 +1,5 @@
 import { forwardRef } from "react";
+import { trackEvent } from "./analytics";
 import qr from "./assets/paypal-qr.jpeg";
 
 export const PAYPAL_URL = "https://www.paypal.me/vazeabhishekd";
@@ -16,7 +17,7 @@ export const DonateDialog = forwardRef<HTMLDialogElement, Props>(function Donate
         and keeps the platform running.
       </p>
       <img src={qr} alt="PayPal QR code for @vazeabhishekd" width={200} height={200} />
-      <a href={PAYPAL_URL} target="_blank" rel="noopener noreferrer">paypal.me/vazeabhishekd</a>
+      <a href={PAYPAL_URL} onClick={() => trackEvent("donate_clicked")} target="_blank" rel="noopener noreferrer">paypal.me/vazeabhishekd</a>
       <button className="btn-ghost" onClick={() => (ref as React.RefObject<HTMLDialogElement>).current?.close()}>
         Close
       </button>

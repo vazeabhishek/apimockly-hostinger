@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type MockInfo } from "./api";
+import { trackPageView } from "./analytics";
 import { AuthForm } from "./AuthForm";
 import { MyMocks } from "./MyMocks";
 import { Shell, type View } from "./Shell";
@@ -33,6 +34,7 @@ export function App() {
     api.samples().then((r) => setSamples(r.data.prompts ?? []));
     api.me().then((r) => setUser(r.data.user));
   }, []);
+  useEffect(() => trackPageView(view), [view]);
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages, busy]);

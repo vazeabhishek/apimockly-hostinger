@@ -5,11 +5,14 @@ import fastifyStatic from "@fastify/static";
 import type { Config } from "./config.js";
 import type { Mock, Repo, User } from "./repo.js";
 import { parseMockPhrase, SAMPLE_PROMPTS } from "./parser.js";
+import { noopAnalytics, type Analytics } from "./analytics.js";
 import { hashIp, hashPassword, newMockId, verifyPassword } from "./security.js";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function buildApp(repo: Repo, config: Config, now: () => Date = () => new Date()): FastifyInstance {
+export function buildApp(repo: Repo, config: Config, now: () => Date = () => new Date(),
+  analytics: Analytics = noopAnalytics,
+): FastifyInstance {
   const app = Fastify({ trustProxy: config.trustProxy, bodyLimit: 16 * 1024 });
   const secure = config.publicBaseUrl.startsWith("https://");
 
@@ -33,24 +36,35 @@ export function buildApp(repo: Repo, config: Config, now: () => Date = () => new
     expiresAt: m.expiresAt,
   });
 
-  const limit = (max: number) => ({ config: { rateLimit: { max, timeWindow: "1 minute" } } });
+  const limit = (max: number, kind: "create" | "serve" = "create") => ({
+    config: {
+      rateLimit: { max, timeWindow: "1 minute", onExceeded: () => analytics.track("rate_limited", { kind }) },
+    },
+  });
 
   app.register(async (api) => {
+    api.get("/api/config", async () => ({ gaMeasurementId: config.gaMeasurementId ?? null }));
+
     api.get("/api/samples", async () => ({ prompts: SAMPLE_PROMPTS }));
 
     api.post<{ Body: { message?: unknown } }>("/api/chat", limit(config.createRatePerMin), async (req, reply) => {
       const message = req.body?.message;
       if (typeof message !== "string" || !message.trim()) {
+        analytics.track("mock_create_failed", { reason: "empty_message" });
         return reply.code(400).send({ ok: false, reply: "Please type a message." });
       }
       const parsed = parseMockPhrase(message, config.maxBodyBytes);
-      if (!parsed.ok) return reply.code(400).send({ ok: false, reply: parsed.error });
+      if (!parsed.ok) {
+        analytics.track("mock_create_failed", { reason: "invalid_input" });
+        return reply.code(400).send({ ok: false, reply: parsed.error });
+      }
 
       const user = await currentUser(req);
       const ipHash = hashIp(req.ip, config.sessionSecret);
       const t = now();
 
       if (!user && (await repo.countLiveAnonymousByIp(ipHash, t)) >= config.anonCapPerIp) {
+        analytics.track("mock_create_failed", { reason: "anon_cap" });
         return reply.code(429).send({
           ok: false,
           reply: `You already have ${config.anonCapPerIp} active anonymous mocks. Sign up to create more, or wait for them to expire.`,
@@ -66,6 +80,7 @@ export function buildApp(repo: Repo, config: Config, now: () => Date = () => new
         createdAt: t,
       };
       await repo.createMock(mock);
+      analytics.track("mock_created", { source: "chat", owner: user ? "user" : "anon" });
 
       const pm = publicMock(mock);
       const expiry = user
@@ -80,16 +95,22 @@ export function buildApp(repo: Repo, config: Config, now: () => Date = () => new
       async (req, reply) => {
         const { email, password, claimMockId } = req.body ?? {};
         if (typeof email !== "string" || !EMAIL.test(email) || email.length > 255) {
+          analytics.track("signup_failed", { reason: "invalid_email" });
           return reply.code(400).send({ error: "Enter a valid email address." });
         }
         if (typeof password !== "string" || password.length < 8 || password.length > 200) {
+          analytics.track("signup_failed", { reason: "invalid_password" });
           return reply.code(400).send({ error: "Password must be 8-200 characters." });
         }
         const user = await repo.createUser(email.toLowerCase(), hashPassword(password));
-        if (!user) return reply.code(409).send({ error: "That email is already registered." });
+        if (!user) {
+          analytics.track("signup_failed", { reason: "duplicate_email" });
+          return reply.code(409).send({ error: "That email is already registered." });
+        }
 
         const claimed = typeof claimMockId === "string" ? await repo.claimMock(claimMockId, user.id, now()) : false;
         reply.setCookie("sid", String(user.id), { signed: true, httpOnly: true, sameSite: "lax", path: "/", secure });
+        analytics.track("user_registered");
         return { user: { email: user.email }, claimed };
       },
     );
@@ -104,6 +125,7 @@ export function buildApp(repo: Repo, config: Config, now: () => Date = () => new
           return reply.code(401).send({ error: "Invalid email or password." });
         }
         reply.setCookie("sid", String(user.id), { signed: true, httpOnly: true, sameSite: "lax", path: "/", secure });
+        analytics.track("login");
         return { user: { email: user.email } };
       },
     );
@@ -133,7 +155,7 @@ export function buildApp(repo: Repo, config: Config, now: () => Date = () => new
 
       serving.all<{ Params: { id: string; "*": string } }>(
         "/m/:id/*",
-        limit(config.serveRatePerMin),
+        limit(config.serveRatePerMin, "serve"),
         async (req, reply) => {
           const path = "/" + req.params["*"];
           const mock = await repo.findMock(req.params.id);
@@ -143,7 +165,12 @@ export function buildApp(repo: Repo, config: Config, now: () => Date = () => new
             .header("Content-Security-Policy", "sandbox")
             .header("Cache-Control", "no-store")
             .type("application/json");
-          if (!mock || !live || mock.method !== req.method || mock.path !== path) {
+          const hit = mock && live && mock.method === req.method && mock.path === path;
+          analytics.track("mock_served", {
+            method: req.method,
+            status_class: `${Math.floor((hit ? mock.status : 404) / 100)}xx`,
+          });
+          if (!hit) {
             return reply.code(404).send({ error: "No mock matches this request." });
           }
           if (mock.status === 204 || mock.status === 304) return reply.code(mock.status).send();

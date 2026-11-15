@@ -17,6 +17,8 @@ export interface Config {
   trustProxy: boolean;
   staticDir?: string;
   databaseUrl: string;
+  gaMeasurementId?: string;
+  gaApiSecret?: string;
 }
 
 const num = (v: string | undefined, d: number) => (v ? Number(v) : d);
@@ -65,6 +67,14 @@ function resolveBaseUrl(profile: Profile, raw: string | undefined, port: number)
   return raw.replace(/\/$/, "");
 }
 
+const GA_ID = /^G-[A-Za-z0-9]+$/;
+
+function resolveGaId(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  if (!GA_ID.test(raw)) throw new Error(`GA_MEASUREMENT_ID must look like G-XXXXXXXX (got "${raw}")`);
+  return raw;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const sessionSecret = env.SESSION_SECRET;
   if (!sessionSecret || sessionSecret.length < 16) {
@@ -86,5 +96,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxy: env.TRUST_PROXY === "true",
     staticDir: env.STATIC_DIR,
     databaseUrl: env.DATABASE_URL ?? "mysql://apimocker:apimocker@localhost:3306/apimocker",
+    gaMeasurementId: resolveGaId(env.GA_MEASUREMENT_ID),
+    gaApiSecret: env.GA_API_SECRET || undefined,
   };
 }

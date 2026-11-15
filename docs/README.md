@@ -18,6 +18,7 @@ This documentation follows the [Diátaxis](https://diataxis.fr/) framework. Each
 - [Run and schedule the cleanup job](how-to/run-cleanup-job.md)
 - [Configure limits](how-to/configure-limits.md)
 - [Configure for production](how-to/configure-production.md)
+- [Set up Google Analytics](how-to/set-up-google-analytics.md)
 
 ## Reference
 - [Chat phrase grammar](reference/chat-phrase.md)

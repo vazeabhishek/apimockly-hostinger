@@ -17,6 +17,8 @@ The backend is configured with environment variables. At startup it also loads `
 | `ANON_TTL_HOURS` | `24` | Lifetime of anonymous mocks. |
 | `CLEANUP_CRON` | `0 * * * *` | Cron expression for the cleanup job. |
 | `TRUST_PROXY` | `false` | Set `true` to use `X-Forwarded-For` for the client IP. |
+| `GA_MEASUREMENT_ID` | unset | GA4 measurement ID (`G-XXXXXXXX`). Enables browser page tracking. Invalid format fails startup. See [Set up Google Analytics](../how-to/set-up-google-analytics.md). |
+| `GA_API_SECRET` | unset | GA4 Measurement Protocol secret. With the ID, enables server-side events (`mock_created`, `user_registered`, `mock_served`, etc.). No emails, IPs, paths or bodies are sent. |
 
 ## Production
 
