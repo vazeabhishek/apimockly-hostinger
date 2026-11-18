@@ -21,23 +21,40 @@ const WELCOME: Message = {
 };
 
 export function App() {
+  const viewFromPath = (): View => {
+    if (window.location.pathname === "/login") return "login";
+    if (window.location.pathname === "/signup") return "signup";
+    if (window.location.pathname === "/mocks") return "mocks";
+    return "chat";
+  };
   const [messages, setMessages] = useState<Message[]>([WELCOME]);
   const [samples, setSamples] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [user, setUser] = useState<{ email: string } | null>(null);
   const [lastMock, setLastMock] = useState<MockInfo | null>(null); // kept in memory only
-  const [view, setView] = useState<View>("chat");
+  const [view, setView] = useState<View>(viewFromPath);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.samples().then((r) => setSamples(r.data.prompts ?? []));
     api.me().then((r) => setUser(r.data.user));
   }, []);
+  useEffect(() => {
+    const onPopState = () => setView(viewFromPath());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   useEffect(() => trackPageView(view), [view]);
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ behavior: "smooth" });
   }, [messages, busy]);
+
+  function navigate(next: View) {
+    setView(next);
+    const path = next === "chat" ? "/" : `/${next}`;
+    if (window.location.pathname !== path) window.history.pushState({}, "", path);
+  }
 
   async function send(text: string) {
     const message = text.trim();
@@ -57,26 +74,26 @@ export function App() {
 
   const onAuthed = (u: { email: string }, note?: string) => {
     setUser(u);
-    setView("chat");
+    navigate("chat");
     if (note) setMessages((m) => [...m, { from: "bot", text: note }]);
   };
 
   async function logout() {
     await api.logout();
     setUser(null);
-    setView("chat");
+    navigate("chat");
   }
 
   return (
-    <Shell view={view} user={user} onNavigate={setView} onLogout={logout}>
-      {view === "mocks" && <MyMocks onOpenChat={() => setView("chat")} />}
+    <Shell view={view} user={user} onNavigate={navigate} onLogout={logout}>
+      {view === "mocks" && <MyMocks onOpenChat={() => navigate("chat")} />}
       {(view === "signup" || view === "login") && (
         <AuthForm
           mode={view}
           claimMock={lastMock}
           onDone={onAuthed}
-          onSwitch={() => setView(view === "signup" ? "login" : "signup")}
-          onCancel={() => setView("chat")}
+          onSwitch={() => navigate(view === "signup" ? "login" : "signup")}
+          onCancel={() => navigate("chat")}
         />
       )}
 
@@ -103,7 +120,7 @@ export function App() {
                       {m.mock.expiresAt && (
                         <p className="notice">
                           Expires {new Date(m.mock.expiresAt).toLocaleString()} and will be removed automatically.{" "}
-                          <button className="link" onClick={() => setView("signup")}>Sign up</button> to keep it
+                          <button className="link" onClick={() => navigate("signup")}>Sign up</button> to keep it
                           (do it before refreshing this page).
                         </p>
                       )}

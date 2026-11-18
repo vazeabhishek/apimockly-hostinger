@@ -1,4 +1,6 @@
-import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve, sep } from "node:path";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
@@ -35,6 +37,15 @@ export function buildApp(repo: Repo, config: Config, now: () => Date = () => new
     status: m.status,
     expiresAt: m.expiresAt,
   });
+
+  const serveStaticHtml = (reply: FastifyReply, relativePath: string) => {
+    if (!config.staticDir) return reply.code(404).send({ error: "Not found." });
+    const root = resolve(config.staticDir);
+    const file = resolve(root, relativePath);
+    if (file !== root && !file.startsWith(root + sep)) return reply.code(404).send({ error: "Not found." });
+    if (!existsSync(file)) return reply.code(404).send({ error: "Not found." });
+    return reply.type("text/html").send(readFileSync(file));
+  };
 
   const limit = (max: number, kind: "create" | "serve" = "create") => ({
     config: {
@@ -179,6 +190,30 @@ export function buildApp(repo: Repo, config: Config, now: () => Date = () => new
       );
     });
   });
+
+  if (config.staticDir) {
+    app.get("/docs", async (_req, reply) => serveStaticHtml(reply, "docs/index.html"));
+
+    app.get<{ Params: { "*": string } }>("/docs/*", async (req, reply) => {
+      const suffix = req.params["*"].replace(/\/+$/, "");
+      if (!suffix) return serveStaticHtml(reply, "docs/index.html");
+      if (suffix.split("/").some((segment) => segment === "." || segment === ".." || segment === "")) {
+        return reply.code(404).send({ error: "Not found." });
+      }
+      return serveStaticHtml(reply, `docs/${suffix}/index.html`);
+    });
+
+    for (const route of [
+      "/use-cases/frontend-development",
+      "/use-cases/api-testing",
+      "/use-cases/rapid-prototyping",
+      "/login",
+      "/signup",
+      "/mocks",
+    ]) {
+      app.get(route, async (_req, reply) => serveStaticHtml(reply, `${route.replace(/^\/+/, "")}/index.html`));
+    }
+  }
 
   if (config.staticDir) app.register(fastifyStatic, { root: config.staticDir, wildcard: false });
 

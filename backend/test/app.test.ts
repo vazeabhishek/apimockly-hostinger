@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { buildApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { MemoryRepo } from "../src/memoryRepo.js";
@@ -151,5 +154,50 @@ describe("accounts", () => {
   it("ignores forged session cookies", async () => {
     const res = await app().inject({ method: "GET", url: "/api/mocks", cookies: { sid: "1" } });
     expect(res.statusCode).toBe(401);
+  });
+});
+
+describe("search-engine public files", () => {
+  it("serves discovery files and public docs while keeping app routes no-index", async () => {
+    const staticDir = mkdtempSync(join(tmpdir(), "apimocker-static-"));
+    mkdirSync(join(staticDir, "docs"));
+    mkdirSync(join(staticDir, "login"));
+    mkdirSync(join(staticDir, "signup"));
+    mkdirSync(join(staticDir, "mocks"));
+    mkdirSync(join(staticDir, "use-cases", "frontend-development"), { recursive: true });
+
+    writeFileSync(join(staticDir, "robots.txt"), "User-agent: *\nDisallow: /api/\nSitemap: https://example.com/sitemap.xml\n");
+    writeFileSync(join(staticDir, "sitemap.xml"), '<?xml version="1.0"?><urlset><url><loc>https://example.com/</loc></url></urlset>');
+    writeFileSync(join(staticDir, "docs", "index.html"), "<html><body>Documentation</body></html>");
+    writeFileSync(join(staticDir, "login", "index.html"), '<html><head><meta name="robots" content="noindex, follow"></head><body>Login</body></html>');
+    writeFileSync(join(staticDir, "signup", "index.html"), '<html><head><meta name="robots" content="noindex, follow"></head><body>Signup</body></html>');
+    writeFileSync(join(staticDir, "mocks", "index.html"), '<html><head><meta name="robots" content="noindex, follow"></head><body>Mocks</body></html>');
+    writeFileSync(join(staticDir, "use-cases", "frontend-development", "index.html"), "<html><body>Frontend development</body></html>");
+
+    const a = buildApp(repo, { ...config, staticDir });
+    try {
+      const robots = await a.inject({ method: "GET", url: "/robots.txt" });
+      expect(robots.statusCode).toBe(200);
+      expect(robots.headers["content-type"]).toContain("text/plain");
+      expect(robots.body).toContain("Sitemap:");
+
+      const sitemap = await a.inject({ method: "GET", url: "/sitemap.xml" });
+      expect(sitemap.statusCode).toBe(200);
+      expect(sitemap.headers["content-type"]).toContain("application/xml");
+      expect(sitemap.body).toContain("<urlset");
+
+      expect((await a.inject({ method: "GET", url: "/docs" })).statusCode).toBe(200);
+      expect((await a.inject({ method: "GET", url: "/use-cases/frontend-development" })).body).toContain("Frontend development");
+
+      for (const route of ["/login", "/signup", "/mocks"]) {
+        const response = await a.inject({ method: "GET", url: route });
+        expect(response.statusCode).toBe(200);
+        expect(response.body).toContain("noindex, follow");
+      }
+
+      expect((await a.inject({ method: "GET", url: "/does-not-exist" })).statusCode).toBe(404);
+    } finally {
+      rmSync(staticDir, { recursive: true, force: true });
+    }
   });
 });

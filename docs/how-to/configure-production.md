@@ -27,7 +27,18 @@ Mock URLs are built from `PUBLIC_BASE_URL`. In production it must be your public
 
 - Startup fails with `PUBLIC_BASE_URL must be set…` or `…must not point at localhost…` if the URL is missing or points at localhost. Fix the value and restart.
 - Create a mock in the UI and confirm its URL starts with your public address.
+- Open `/robots.txt` and confirm it allows public pages, disallows `/api/` and `/m/`, and references `/sitemap.xml`.
+- Open `/sitemap.xml` and confirm every `<loc>` uses `PUBLIC_BASE_URL`.
+- Open `/login`, `/signup`, and `/mocks` and confirm they include `noindex, follow`.
 
 `.env.*` files are git-ignored (only `*.example` files are committed), so secrets stay out of the repo.
 
 See [Configuration](../reference/configuration.md) for all variables.
+
+## Register with search engines
+
+1. Add the canonical public domain to Google Search Console and verify ownership using a method supported by the hosting platform.
+2. Add the same canonical domain to Bing Webmaster Tools.
+3. Submit `https://your-public-domain.example/sitemap.xml` in each service.
+4. Use a URL inspection or crawl test for `/`, `/docs/`, and one documentation page before submitting the whole sitemap.
+5. Confirm reports show public routes while login, signup, saved-mock, API, and generated mock URLs remain excluded.
